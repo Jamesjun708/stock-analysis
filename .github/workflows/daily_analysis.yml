@@ -1,0 +1,55 @@
+name: daily stock analysis
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: install deps
+        run: pip install -r requirements.txt
+      - name: run analysis
+        run: python main.py
+        env:
+          STOCK_USE_MOCK: '1'
+          PYTHONIOENCODING: 'utf-8'
+      - name: commit report
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@local"
+          d=$(date +'%Y%m%d')
+          git add reports/daily_report_${d}.txt
+          git commit -m "report $(date +'%Y-%m-%d')" || echo "no change"
+          git push
+
+  deploy:
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build pages
+        run: python scripts/build_pages.py
+      - name: upload pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: deploy pages
+        id: deployment
+        uses: actions/deploy-pages@v4
