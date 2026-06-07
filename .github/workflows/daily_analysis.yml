@@ -1,0 +1,156 @@
+name: 📊 每日股票分析
+
+on:
+  schedule:
+    # 北京时间 09:00 = UTC 01:00（每天）
+    - cron: '0 1 * * *'
+  workflow_dispatch:  # 支持手动触发
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+    working-directory: stock-analysis
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: ⬇️ 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🐍 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 📦 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🚀 运行分析
+        run: python main.py
+        env:
+          STOCK_USE_MOCK: '1'
+          PYTHONIOENCODING: 'utf-8'
+
+      - name: 📤 提交报告
+        run: |
+          git config user.name "Stock Analysis Bot"
+          git config user.email "bot@stock-analysis.local"
+          REPORT_DATE=$(date +'%Y%m%d')
+          git add reports/daily_report_${REPORT_DATE}.txt
+          git commit -m "📊 每日分析报告 - $(date +'%Y-%m-%d')" || echo "没有新报告"
+          git push
+        env:
+          GIT_ASKPASS: ''
+          GIT_TERMINAL_PROMPT: '0'
+
+  deploy:
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ 检出代码
+        uses: actions/checkout@v4
+
+      - name: 📄 准备页面
+        run: |
+          mkdir -p _site
+          cp -r stock-analysis/reports/* _site/ 2>/dev/null || true
+          cat > _site/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>每日股票分析报告</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, 'Microsoft YaHei', sans-serif;
+           background: #f5f5f5; color: #333; padding: 40px 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { text-align: center; color: #1a73e8; margin-bottom: 10px; }
+    .subtitle { text-align: center; color: #666; margin-bottom: 30px; }
+    .report-list { background: #fff; border-radius: 12px;
+                   box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 24px; }
+    .report-item { display: flex; justify-content: space-between;
+                   align-items: center; padding: 14px 16px;
+                   border-bottom: 1px solid #eee; transition: background 0.2s; }
+    .report-item:hover { background: #f0f7ff; }
+    .report-item:last-child { border-bottom: none; }
+    .report-date { font-weight: 600; font-size: 16px; }
+    .report-link { color: #1a73e8; text-decoration: none;
+                   padding: 6px 16px; border-radius: 6px;
+                   border: 1px solid #1a73e8; font-size: 14px; }
+    .report-link:hover { background: #1a73e8; color: #fff; }
+    .empty { text-align: center; padding: 40px; color: #999; }
+    .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px;
+             background: #e8f5e9; color: #2e7d32; margin-left: 8px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>📊 每日股票分析报告</h1>
+  <p class="subtitle">基于多智能体协作的 A 股市场分析系统 · 小组项目</p>
+  <div class="report-list">
+    <h2 style="margin-bottom:16px;">📋 历史报告</h2>
+    <div id="report-list">
+      <p class="empty">⏳ 加载中...</p>
+    </div>
+  </div>
+</div>
+<script>
+async function loadReports() {
+  try {
+    const resp = await fetch('https://api.github.com/repos/${{ github.repository }}/contents/stock-analysis/reports');
+    if (!resp.ok) throw new Error('获取失败');
+    const files = await resp.json();
+    const container = document.getElementById('report-list');
+    if (!files || files.length === 0) {
+      container.innerHTML = '<p class="empty">📭 暂无报告</p>';
+      return;
+    }
+    const html = files
+      .filter(f => f.name.endsWith('.txt'))
+      .sort((a, b) => b.name.localeCompare(a.name))
+      .map(f => {
+        const date = f.name.replace('daily_report_', '').replace('.txt', '');
+        const y = date.slice(0,4), m = date.slice(4,6), d = date.slice(6,8);
+        return '<div class="report-item">' +
+          `<span class="report-date">${y}年${m}月${d}日 <span class="badge">最新</span></span>` +
+          `<a class="report-link" href="${f.download_url}" target="_blank">查看报告</a>` +
+          '</div>';
+      }).join('');
+    container.innerHTML = html;
+  } catch(e) {
+    document.getElementById('report-list').innerHTML =
+      '<p class="empty">⚠️ 加载失败，请稍后刷新</p>';
+  }
+}
+loadReports();
+</script>
+</body>
+</html>
+EOF
+
+      - name: 📤 上传 Pages 制品
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+      - name: 🚀 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

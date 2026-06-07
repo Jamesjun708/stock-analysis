@@ -1,0 +1,8 @@
+# 股票分析系统 - GitHub Actions
+
+# .gitignore
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
