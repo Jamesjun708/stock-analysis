@@ -1,4 +1,4 @@
-name: daily stock analysis
+name: stock analysis
 
 on:
   schedule:
@@ -19,19 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: setup python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: install deps
-        run: pip install -r requirements.txt
-      - name: run analysis
-        run: python main.py
+      - run: pip install -r requirements.txt
+      - run: python main.py
         env:
           STOCK_USE_MOCK: '1'
           PYTHONIOENCODING: 'utf-8'
-      - name: commit report
-        run: |
+      - run: |
           git config user.name "bot"
           git config user.email "bot@local"
           d=$(date +'%Y%m%d')
@@ -44,12 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: build pages
-        run: python scripts/build_pages.py
-      - name: upload pages
-        uses: actions/upload-pages-artifact@v3
+      - run: python scripts/build_pages.py
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - name: deploy pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v4
