@@ -14,10 +14,6 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -30,8 +26,7 @@ jobs:
           python-version: '3.10'
 
       - name: 安装依赖
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: 运行分析
         run: python main.py
@@ -53,62 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # 拉取全部历史以便读取所有报告
 
       - name: 生成页面
-        run: |
-          mkdir -p _site
-          cp reports/*.txt _site/ 2>/dev/null || true
-
-          # 生成 index.html
-          echo '<!DOCTYPE html>' > _site/index.html
-          echo '<html lang="zh-CN"><head><meta charset="UTF-8">' >> _site/index.html
-          echo '<meta name="viewport" content="width=device-width,initial-scale=1.0">' >> _site/index.html
-          echo '<title>每日股票分析报告</title>' >> _site/index.html
-          echo '<style>
-          *{margin:0;padding:0;box-sizing:border-box}
-          body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#f5f5f5;color:#333;padding:40px 20px}
-          .container{max-width:900px;margin:0 auto}
-          h1{text-align:center;color:#1a73e8;margin-bottom:10px}
-          .subtitle{text-align:center;color:#666;margin-bottom:30px}
-          .box{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);padding:24px}
-          .item{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #eee}
-          .item:hover{background:#f0f7ff}
-          .item:last-child{border-bottom:none}
-          .date{font-weight:600;font-size:16px}
-          .link{color:#1a73e8;text-decoration:none;padding:6px 16px;border-radius:6px;border:1px solid #1a73e8;font-size:14px}
-          .link:hover{background:#1a73e8;color:#fff}
-          .empty{text-align:center;padding:40px;color:#999}
-          </style></head><body>' >> _site/index.html
-          echo '<div class="container">' >> _site/index.html
-          echo '<h1>每日股票分析报告</h1>' >> _site/index.html
-          echo '<p class="subtitle">多智能体协作 A 股市场分析系统</p>' >> _site/index.html
-          echo '<div class="box" id="list">' >> _site/index.html
-          echo '<h2>历史报告</h2>' >> _site/index.html
-          echo '<p class="empty">加载中...</p>' >> _site/index.html
-          echo '</div></div>' >> _site/index.html
-          echo '<script>
-          fetch("reports.json").then(r=>r.json()).then(files=>{
-            var h="";
-            files.filter(function(f){return f.name.endsWith(".txt")}).sort().reverse().forEach(function(f,i){
-              var d=f.name.replace("daily_report_","").replace(".txt","");
-              h+="<div class=item><span class=date>"+d.slice(0,4)+"年"+d.slice(4,6)+"月"+d.slice(6,8)+"日"+(i===0?" NEW":"")+"</span><a class=link href="+f.name+" target=_blank>查看报告</a></div>"
-            });
-            document.getElementById("list").innerHTML="<h2>历史报告</h2>"+(h||"<p class=empty>暂无报告</p>")
-          })</script>' >> _site/index.html
-          echo '</body></html>' >> _site/index.html
-
-          # 生成报告列表 JSON
-          python3 -c "
-import json, os
-files = []
-for f in os.listdir('.'):
-    if f.endswith('.txt'):
-        files.append({'name': f, 'url': f})
-with open('_site/reports.json', 'w') as out:
-    json.dump(files, out)
-"
+        run: python scripts/build_pages.py
 
       - name: 上传 Pages 制品
         uses: actions/upload-pages-artifact@v3
