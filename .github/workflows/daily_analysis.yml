@@ -17,7 +17,6 @@ concurrency:
 defaults:
   run:
     shell: bash
-    working-directory: stock-analysis
 
 jobs:
   analyze:
@@ -110,12 +109,11 @@ for f in os.listdir('.'):
 with open('_site/reports.json', 'w') as out:
     json.dump(files, out)
 "
-        working-directory: stock-analysis
 
       - name: 上传 Pages 制品
         uses: actions/upload-pages-artifact@v3
         with:
-          path: stock-analysis/_site
+          path: _site
 
       - name: 部署到 GitHub Pages
         id: deployment
